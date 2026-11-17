@@ -4,6 +4,7 @@ import {
   THEMES, RARITY, CATEGORIES, PARTS, PART_BY_ID, SCENES, SCENE_BY_ID, SETS, PRINCESSES, PRINCESS_BY_ID,
 } from './game/data.mjs';
 import { renderFigure, renderThumb } from './game/render.mjs';
+import { createAudioEngine, saveAudioSettings, normalizeAudioSettings } from './game/audio.mjs';
 import {
   SAVE_KEY, createState, serialize, deserialize, selectPrincess, equip, unequip,
   unlockPart, UNLOCK_COST, spinCost, spin, setProgress, claimSet, capture, randomize, stats,
@@ -50,6 +51,44 @@ function say(msg: string) {
   toastTimer = setTimeout(() => { toast.value = ''; }, 2200);
 }
 
+/* ----------------------------- 音频 ----------------------------- */
+function loadAudioSettings() {
+  try { return normalizeAudioSettings(JSON.parse(localStorage.getItem('otools-princess:audio:v1') || 'null')); }
+  catch { return normalizeAudioSettings(null); }
+}
+const audioState = reactive(loadAudioSettings());
+const audio = createAudioEngine(audioState);
+const audioUnlocked = ref(false);
+
+function sfx(name: string) { audio.play(name); }
+function applyAudio() {
+  audio.applySettings(audioState);
+  saveAudioSettings(audioState);
+}
+/** 浏览器 autoplay 策略：首次真实手势才初始化音频上下文 */
+function unlockAudio() {
+  if (audioUnlocked.value) return;
+  audioUnlocked.value = true;
+  audio.unlock();
+  audio.applySettings(audioState);
+}
+function toggleMusic() { audioState.musicOn = !audioState.musicOn; applyAudio(); sfx('toggle'); }
+function toggleSfx() { audioState.sfxOn = !audioState.sfxOn; applyAudio(); if (audioState.sfxOn) sfx('toggle'); }
+function setMusicVol(e: Event) { audioState.musicVol = Number((e.target as HTMLInputElement).value) / 100; applyAudio(); }
+function setSfxVol(e: Event) { audioState.sfxVol = Number((e.target as HTMLInputElement).value) / 100; applyAudio(); }
+function previewMusic() { unlockAudio(); sfx('win'); }
+/** HUD 一键静音：同时切换音乐与音效，记住各自原状态 */
+const muted = computed(() => !audioState.musicOn && !audioState.sfxOn);
+function toggleMute() {
+  if (muted.value) {
+    audioState.musicOn = true; audioState.sfxOn = true;
+  } else {
+    audioState.musicOn = false; audioState.sfxOn = false;
+  }
+  applyAudio();
+  if (audioState.sfxOn) sfx('toggle');
+}
+
 /* ----------------------------- 派生数据 ----------------------------- */
 const princess = computed(() => PRINCESS_BY_ID.get(state.princessId) || PRINCESSES[0]);
 const figureSvg = computed(() => renderFigure(state.outfit, princess.value, state.sceneId, { uid: 'stage', mood: state.mood }));
@@ -84,9 +123,10 @@ function applyState(next: any) {
 function pickPart(part: any) {
   if (unlockedSet.value.has(part.id)) {
     const r = equip(state, part.id);
-    if (r.ok) { applyState(r.state); say(`换上了「${part.name}」✨`); }
+    if (r.ok) { applyState(r.state); say(`换上了「${part.name}」✨`); sfx('equip'); }
   } else {
     pendingUnlock.value = part;
+    sfx('error');
   }
 }
 
@@ -101,59 +141,70 @@ function confirmUnlock() {
     const worn = equip(state, part.id);
     if (worn.ok) applyState(worn.state);
     say(`解锁「${part.name}」成功，花费 ${r.cost} ⭐`);
+    sfx('unlock');
     pendingUnlock.value = null;
   } else if (r.reason === 'stars') {
     say(`星星不够啦，还差 ${r.cost - state.stars} ⭐`);
+    sfx('error');
   }
 }
 
 function removeLayer(cat: string) {
   applyState(unequip(state, cat));
   say('已经脱下这一层啦');
+  sfx('remove');
 }
 
 function choosePrincess(p: any) {
   applyState(selectPrincess(state, p.id));
   view.value = 'studio';
   say(`欢迎公主「${p.name}」👑`);
+  sfx('hello');
 }
 
 function doRandom() {
   Object.assign(state, randomize(state));
   say('随机搭配完成，看看新造型 🎀');
+  sfx('win');
 }
 
 function toggleMood() {
   state.mood = state.mood === 'smile' ? 'wink' : 'smile';
+  sfx('toggle');
 }
 
 function doCapture() {
   const r = capture(state);
-  if (r.ok) { applyState(r.state); say('拍下美美的照片，+2 ⭐'); }
-  else say('这张已经拍过啦');
+  if (r.ok) { applyState(r.state); say('拍下美美的照片，+2 ⭐'); sfx('capture'); }
+  else { say('这张已经拍过啦'); sfx('error'); }
 }
 
 function chooseScene(s: any) {
   state.sceneId = s.id;
   say(`切换到「${s.name}」场景`);
+  sfx('scene');
 }
 
 function doClaim(set: any) {
   const r = claimSet(state, set.id);
   if (r.ok) { applyState(r.state); say(`恭喜集齐「${set.name}」，+${r.reward} ⭐🎉`); celebrate(); }
-  else say('这套还不能领奖哦');
+  else { say('这套还不能领奖哦'); sfx('error'); }
 }
 
 /* 转盘 */
 const spinning = ref(false);
 const spinResult = ref<any>(null);
+let spinTickTimer: ReturnType<typeof setInterval> | null = null;
 function doSpin() {
   if (spinning.value) return;
   const cost = spinCost(state);
-  if (state.stars < cost) { say('星星不够转啦'); return; }
+  if (state.stars < cost) { say('星星不够转啦'); sfx('error'); return; }
   spinning.value = true;
   spinResult.value = null;
+  sfx('spin');
+  spinTickTimer = setInterval(() => sfx('spin'), 110);
   setTimeout(() => {
+    if (spinTickTimer) { clearInterval(spinTickTimer); spinTickTimer = null; }
     const r = spin(state);
     spinning.value = false;
     if (r.ok) { applyState(r.state); spinResult.value = r.part; celebrate(); }
@@ -165,6 +216,7 @@ function wearResult() {
   const r = equip(state, spinResult.value.id);
   if (r.ok) applyState(r.state);
   say(`穿上了「${spinResult.value.name}」`);
+  sfx('equip');
   spinResult.value = null;
 }
 
@@ -172,6 +224,7 @@ function wearResult() {
 const celebrating = ref(false);
 function celebrate() {
   celebrating.value = true;
+  sfx('win');
   setTimeout(() => { celebrating.value = false; }, 1600);
 }
 const confetti = Array.from({ length: 24 }, (_, i) => ({
@@ -187,6 +240,7 @@ function resetGame() {
   Object.assign(state, createState());
   view.value = 'home';
   say('已重置为新游戏');
+  sfx('toggle');
 }
 function toggleTheme() {
   const root = document.documentElement;
@@ -197,10 +251,16 @@ function toggleTheme() {
 }
 
 onMounted(() => {
-  // 无
+  // 首次真实手势（点按/键盘）解锁音频上下文；只触发一次
+  const onFirstGesture = () => { unlockAudio(); };
+  window.addEventListener('pointerdown', onFirstGesture, { once: true });
+  window.addEventListener('keydown', onFirstGesture, { once: true });
 });
 
 const viewTitle = computed(() => NAV.find((n) => n.id === view.value)?.label || '');
+function go(target: View) { view.value = target; sfx('tab'); }
+/** 分类 / 筛选切换的轻音效（值本身用 v-model 式赋值，这里只出声） */
+function tick() { sfx('tab'); }
 </script>
 
 <template>
@@ -221,6 +281,7 @@ const viewTitle = computed(() => NAV.find((n) => n.id === view.value)?.label || 
       <div class="hud-stats">
         <div class="star-pill" title="我的星星"><span>⭐</span><b>{{ state.stars }}</b></div>
         <div class="lv-pill" title="收集等级">Lv.{{ Math.min(9, 1 + Math.floor(st.partsOwned / 14)) }}</div>
+        <button class="icon-btn" :class="{ 'is-off': muted }" :title="muted ? '开启声音' : '一键静音'" @click="toggleMute">{{ muted ? '🔇' : '🔊' }}</button>
         <button class="icon-btn" title="切换亮暗" @click="toggleTheme">🌗</button>
       </div>
     </header>
@@ -231,7 +292,7 @@ const viewTitle = computed(() => NAV.find((n) => n.id === view.value)?.label || 
         <button
           v-for="n in NAV" :key="n.id"
           class="nav-item" :class="{ active: view === n.id }"
-          @click="view = n.id"
+          @click="go(n.id)"
         >
           <span class="nav-icon">{{ n.icon }}</span>
           <span class="nav-label">{{ n.label }}</span>
@@ -248,23 +309,23 @@ const viewTitle = computed(() => NAV.find((n) => n.id === view.value)?.label || 
               <h1>今天，你想成为<br /><em>哪位公主</em>呢？</h1>
               <p>50 位主题公主 · 118 件精绘造型 · 自由搭配，天天不一样</p>
               <div class="hero-actions">
-                <button class="btn primary big" @click="view = 'studio'">💄 开始换装</button>
-                <button class="btn ghost big" @click="view = 'princesses'">👑 认识公主</button>
+                <button class="btn primary big" @click="go('studio')">💄 开始换装</button>
+                <button class="btn ghost big" @click="go('princesses')">👑 认识公主</button>
               </div>
             </div>
             <div class="hero-figure" v-html="figureSvg"></div>
           </div>
           <div class="home-cards">
-            <button class="feature-card fc-pink" @click="view = 'studio'">
+            <button class="feature-card fc-pink" @click="go('studio')">
               <span class="fc-icon">🎀</span><div><b>自由换装</b><small>8 大类部件分层搭配</small></div><span class="fc-arrow">›</span>
             </button>
-            <button class="feature-card fc-blue" @click="view = 'princesses'">
+            <button class="feature-card fc-blue" @click="go('princesses')">
               <span class="fc-icon">🌈</span><div><b>50 位公主</b><small>5 大主题等你收集</small></div><span class="fc-arrow">›</span>
             </button>
-            <button class="feature-card fc-green" @click="view = 'quests'">
+            <button class="feature-card fc-green" @click="go('quests')">
               <span class="fc-icon">🏅</span><div><b>套装加成</b><small>凑齐一套领大奖</small></div><span class="fc-arrow">›</span>
             </button>
-            <button class="feature-card fc-yellow" @click="view = 'spin'">
+            <button class="feature-card fc-yellow" @click="go('spin')">
               <span class="fc-icon">🎡</span><div><b>幸运转盘</b><small>首次免费抽部件</small></div><span class="fc-arrow">›</span>
             </button>
           </div>
@@ -304,7 +365,7 @@ const viewTitle = computed(() => NAV.find((n) => n.id === view.value)?.label || 
                 <button
                   v-for="c in CATEGORIES" :key="c.id"
                   class="cat-tab" :class="{ active: activeCat === c.id }"
-                  @click="activeCat = c.id"
+                  @click="activeCat = c.id; tick()"
                 >
                   <span>{{ c.icon }}</span>{{ c.name }}
                 </button>
@@ -345,8 +406,8 @@ const viewTitle = computed(() => NAV.find((n) => n.id === view.value)?.label || 
           <div class="view-head">
             <div><h2>👑 公主图鉴</h2><p>50 位公主，5 大主题，点一下就能请她来换装</p></div>
             <div class="filter-row">
-              <button class="chip" :class="{ active: themeFilter === 'all' }" @click="themeFilter = 'all'">全部 50</button>
-              <button v-for="t in THEMES" :key="t.id" class="chip" :class="{ active: themeFilter === t.id }" @click="themeFilter = t.id">
+              <button class="chip" :class="{ active: themeFilter === 'all' }" @click="themeFilter = 'all'; tick()">全部 50</button>
+              <button v-for="t in THEMES" :key="t.id" class="chip" :class="{ active: themeFilter === t.id }" @click="themeFilter = t.id; tick()">
                 {{ t.name }} 10
               </button>
             </div>
@@ -374,8 +435,8 @@ const viewTitle = computed(() => NAV.find((n) => n.id === view.value)?.label || 
           <div class="view-head">
             <div><h2>👗 魔法衣柜</h2><p>118 件独立精绘造型，件件都是不同的廓形与细节</p></div>
             <div class="filter-row">
-              <button class="chip" :class="{ active: wardrobeCat === 'all' }" @click="wardrobeCat = 'all'">全部 118</button>
-              <button v-for="c in CATEGORIES" :key="c.id" class="chip" :class="{ active: wardrobeCat === c.id }" @click="wardrobeCat = c.id">
+              <button class="chip" :class="{ active: wardrobeCat === 'all' }" @click="wardrobeCat = 'all'; tick()">全部 118</button>
+              <button v-for="c in CATEGORIES" :key="c.id" class="chip" :class="{ active: wardrobeCat === c.id }" @click="wardrobeCat = c.id; tick()">
                 {{ c.icon }} {{ c.name }}
               </button>
             </div>
@@ -457,7 +518,7 @@ const viewTitle = computed(() => NAV.find((n) => n.id === view.value)?.label || 
           <div class="view-head"><div><h2>📖 我的相册</h2><p>拍下最喜欢的造型，留住每一个漂亮的公主</p></div><span class="album-count">{{ photos.length }} 张照片</span></div>
           <div v-if="photos.length === 0" class="empty-state">
             <span>📷</span><h3>相册还空着呢</h3><p>去换装间搭配好造型，点「拍照收藏」吧</p>
-            <button class="btn primary" @click="view = 'studio'">去换装</button>
+            <button class="btn primary" @click="go('studio')">去换装</button>
           </div>
           <div v-else class="album-grid">
             <div v-for="photo in photos" :key="photo.id" class="album-card">
@@ -497,8 +558,30 @@ const viewTitle = computed(() => NAV.find((n) => n.id === view.value)?.label || 
                 <li>部件与公主均为原创绘制的独立造型。</li>
               </ul>
             </div>
+            <div class="panel-card audio-settings">
+              <h3>🔊 声音设置</h3>
+              <div class="audio-row">
+                <span class="audio-label">🎵 背景音乐</span>
+                <button class="switch" :class="{ on: audioState.musicOn }" role="switch" :aria-checked="audioState.musicOn" @click="toggleMusic"><i></i></button>
+              </div>
+              <div class="audio-row slider-row">
+                <span class="audio-mini">音量</span>
+                <input class="audio-slider" type="range" min="0" max="100" :value="Math.round(audioState.musicVol * 100)" @input="setMusicVol" :disabled="!audioState.musicOn" />
+                <span class="audio-pct">{{ Math.round(audioState.musicVol * 100) }}%</span>
+              </div>
+              <div class="audio-row">
+                <span class="audio-label">✨ 动作音效</span>
+                <button class="switch" :class="{ on: audioState.sfxOn }" role="switch" :aria-checked="audioState.sfxOn" @click="toggleSfx"><i></i></button>
+              </div>
+              <div class="audio-row slider-row">
+                <span class="audio-mini">音量</span>
+                <input class="audio-slider" type="range" min="0" max="100" :value="Math.round(audioState.sfxVol * 100)" @input="setSfxVol" :disabled="!audioState.sfxOn" />
+                <span class="audio-pct">{{ Math.round(audioState.sfxVol * 100) }}%</span>
+              </div>
+              <button class="btn soft w-full preview-btn" @click="previewMusic">▶ 试听一下</button>
+            </div>
             <div class="panel-card">
-              <h3>🔧 设置</h3>
+              <h3>🔧 其他</h3>
               <button class="btn soft w-full" @click="toggleTheme">切换亮色 / 暗色</button>
               <button class="btn danger w-full" @click="resetGame">重置游戏进度</button>
             </div>

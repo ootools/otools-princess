@@ -336,3 +336,25 @@ html.dark .wheel { border-color: var(--card); }
   .stage-wrap { grid-template-columns: 1fr; } .quest-grid, .parent-grid { grid-template-columns: 1fr; }
   .spin-stage { flex-direction: column; gap: 24px; }
 }
+
+/* ---------------- 声音设置 ---------------- */
+.icon-btn.is-off { opacity: .5; }
+.audio-settings .audio-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+.audio-label { flex: 1; font-size: 14px; font-weight: 600; }
+.audio-mini { font-size: 12px; color: var(--ink-2); width: 28px; }
+.audio-pct { font-size: 12px; color: var(--ink-2); width: 38px; text-align: right; }
+.audio-row.slider-row { padding-top: 0; padding-bottom: 12px; }
+.audio-slider { flex: 1; accent-color: var(--pink); height: 6px; cursor: pointer; }
+.audio-slider:disabled { opacity: .4; cursor: not-allowed; }
+.preview-btn { margin-top: 4px; }
+.switch {
+  position: relative; width: 46px; height: 26px; flex: none; border: none; border-radius: 13px;
+  background: #E4D9EC; cursor: pointer; transition: background .2s;
+}
+html.dark .switch { background: #5a4a6b; }
+.switch.on { background: var(--pink); }
+.switch i {
+  position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.2); transition: transform .2s;
+}
+.switch.on i { transform: translateX(20px); }

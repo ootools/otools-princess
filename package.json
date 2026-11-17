@@ -1,6 +1,6 @@
 {
   "name": "otools-princess",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "A standalone OTools plugin: a layering dress-up game for kids with 50 princesses and 118 independently drawn outfit parts.",
@@ -15,7 +15,7 @@
     "preview": "node scripts/serve-dist.mjs 6575",
     "pack": "npm run build && node scripts/pack-plugin.mjs && node scripts/verify-plugin.mjs",
     "verify": "node scripts/verify-plugin.mjs",
-    "test": "node --test src/game/game.test.mjs scripts/publish-market.test.mjs scripts/release-policy.test.mjs",
+    "test": "node --test src/game/game.test.mjs src/game/audio.test.mjs scripts/publish-market.test.mjs scripts/release-policy.test.mjs",
     "market:preflight": "node scripts/publish-market.mjs preflight"
   },
   "dependencies": {
