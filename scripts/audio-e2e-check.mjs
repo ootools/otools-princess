@@ -62,7 +62,7 @@ try {
   await send('Page.addScriptToEvaluateOnNewDocument', {
     source: `
       (() => {
-        window.__audioProbe = { contexts: 0, oscStarts: 0, noiseStarts: 0 };
+        window.__audioProbe = { contexts: 0, oscStarts: 0, noiseStarts: 0, convolvers: 0 };
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC) return;
         const OrigAC = AC;
@@ -79,6 +79,10 @@ try {
             const orig = b.start.bind(b);
             b.start = (...x) => { window.__audioProbe.noiseStarts++; return orig(...x); };
             return b;
+          }
+          createConvolver() {
+            window.__audioProbe.convolvers++;
+            return super.createConvolver();
           }
         };
       })();
@@ -97,10 +101,13 @@ try {
 
   // 2) 首次手势后：AudioContext 建立，BGM 开始调度（oscStarts 增长）
   await evaluate(send, `document.querySelector('.hud-crown').dispatchEvent(new PointerEvent('pointerdown', {bubbles:true}))`);
-  await sleep(900);
+  await sleep(1600);
   const afterGesture = await evaluate(send, `JSON.parse(JSON.stringify(window.__audioProbe))`);
   assert(afterGesture.contexts === 1, '首次手势后创建了 1 个 AudioContext');
-  assert(afterGesture.oscStarts > 3, `BGM 调度器已排出音符（oscStarts=${afterGesture.oscStarts}）`);
+  assert(afterGesture.convolvers === 1, `卷积混响节点已建立（convolvers=${afterGesture.convolvers}，真实空间余韵）`);
+  // 高保真合成：每个音符由 5 个泛音分音合成。1600ms/92BPM≈2.4 拍 → 旧实现约 6 个振荡器，新实现 >10
+  assert(afterGesture.oscStarts > 10, `加法合成在跑：分音振荡器数远超音符数（oscStarts=${afterGesture.oscStarts}）`);
+  assert(afterGesture.noiseStarts >= 2, `锤击瞬态噪声已合成（noiseStarts=${afterGesture.noiseStarts}）`);
 
   // 3) 点击换装部件 → 音效叠加（osc/noise 计数继续增长）
   const beforeEquip = await evaluate(send, `window.__audioProbe.oscStarts + window.__audioProbe.noiseStarts`);

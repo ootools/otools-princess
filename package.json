@@ -1,6 +1,6 @@
 {
   "name": "otools-princess",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "description": "A standalone OTools plugin: a layering dress-up game for kids with 50 princesses and 118 independently drawn outfit parts.",
