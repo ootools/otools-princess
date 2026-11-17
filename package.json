@@ -1,0 +1,31 @@
+{
+  "name": "otools-princess",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A standalone OTools plugin: a layering dress-up game for kids with 50 princesses and 118 independently drawn outfit parts.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 6574 --strictPort",
+    "build": "vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit --pretty false",
+    "preview": "node scripts/serve-dist.mjs 6575",
+    "pack": "npm run build && node scripts/pack-plugin.mjs && node scripts/verify-plugin.mjs",
+    "verify": "node scripts/verify-plugin.mjs",
+    "test": "node --test src/game.test.mjs scripts/publish-market.test.mjs scripts/release-policy.test.mjs",
+    "market:preflight": "node scripts/publish-market.mjs preflight"
+  },
+  "dependencies": {
+    "vue": "3.5.27"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.8",
+    "@vitejs/plugin-vue": "5.2.4",
+    "typescript": "5.9.3",
+    "vite": "6.4.1",
+    "vue-tsc": "3.3.11"
+  }
+}

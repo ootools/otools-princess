@@ -1,0 +1,17 @@
+export const SAVE_KEY: string;
+export function createState(): any;
+export function serialize(state: any): string;
+export function deserialize(raw: any): any;
+export function selectPrincess(state: any, princessId: string): any;
+export function equip(state: any, partId: string): any;
+export function unequip(state: any, category: string): any;
+export function unlockPart(state: any, partId: string): any;
+export const UNLOCK_COST: any;
+export const SPIN_COST: number;
+export function spinCost(state: any): number;
+export function spin(state: any, rng?: () => number): any;
+export function setProgress(state: any): any[];
+export function claimSet(state: any, setId: string): any;
+export function capture(state: any): any;
+export function randomize(state: any, rng?: () => number): any;
+export function stats(state: any): any;

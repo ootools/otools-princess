@@ -1,0 +1,23 @@
+{
+  "uuid": "otools-princess",
+  "packid": "otools-princess",
+  "displayName": "Princess Dress Up",
+  "displayNameCN": "公主换装乐园",
+  "developerName": "OTools",
+  "summary": "给 3-8 岁孩子的公主换装游戏：50 位主题公主、118 件独立造型部件，发型/礼服/上衣/头饰/道具分层自由搭配，实时预览、套装加成、转盘抽奖、相册收藏。",
+  "version": "0.1.0",
+  "minOtoolsVersion": "0.9.0",
+  "entry": "dist/index.html",
+  "devUrl": "http://127.0.0.1:6574",
+  "quickDev": true,
+  "logo": "logo.svg",
+  "icon": "👑",
+  "hasAd": false,
+  "inPluginPurchase": false,
+  "screenshots": [],
+  "key": ["公主", "换装", "换衣服", "儿童", "游戏", "装扮", "礼服", "princess", "dress up", "娃娃"],
+  "openInBrowser": false,
+  "openMode": "panel",
+  "panelWidth": 1200,
+  "panelHeight": 800
+}
